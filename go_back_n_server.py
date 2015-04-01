@@ -2,7 +2,7 @@ from socket import *
 import struct
 import random
 serverPort = 7734
-filename = 'gbn_file'
+filename = 'a'
 p = 0.98
 serverSocket = socket(AF_INET,SOCK_DGRAM)
 serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
@@ -23,13 +23,17 @@ def get_seq(message):
 	global int_seq
 	seq_string = message[0:4]
 	int_seq = (struct.unpack('i',seq_string))[0]
-	print 'get seq %d , size is %d' %(int_seq, len(message)-8)
+	'''
+	print 'get seq %d' %(int_seq)
+	'''
 
 def generate_ack(message):
 	global int_seq
 	message = message[8:]
 	ack = int_seq + len(message)
+	'''
 	print 'going to send ack %d' %ack
+	'''
 	hex_ack = hex(ack)
 	hex_ack = ('0'*(10-len(hex_ack)))+hex_ack[2:]
 	reverse_hex_ack = hex_ack[6:8]+hex_ack[4:6]+hex_ack[2:4]+hex_ack[0:2]
@@ -54,17 +58,22 @@ while True:
 	(message,clientAddr) = serverSocket.recvfrom(MSS+8)
 	if message == 'OK':
 		break;
-	random_number = random.random()
-	if random_number > p:
-		x= x+1
-	print '%f' %random_number
 	get_seq(message)
-	if random_number <= p:
-		if (int_seq - old_int_seq <= MSS) and ((int_seq > old_int_seq) or (int_seq ==0)):
+	if (int_seq - old_int_seq <= MSS):
+		if ((int_seq >old_int_seq) or (int_seq ==0)):
+			random_number = random.random()
+			'''
+			print '%f' %random_number
+			'''
+			if random_number <= p:
+				ack_message = generate_ack(message)
+				serverSocket.sendto(ack_message,clientAddr)
+			else:
+				x= x+1
+				print 'Packet lost, sequence numebr is %d' %int_seq
+		elif int_seq <= old_int_seq:
 			ack_message = generate_ack(message)
 			serverSocket.sendto(ack_message,clientAddr)
-	else:
-		print 'gonna drop seq %d' %int_seq
 print 'finish receiving file '+filename
 print 'x is %d' %x
 f.close() 
