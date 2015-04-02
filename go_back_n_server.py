@@ -3,7 +3,7 @@ import struct
 import random
 serverPort = 7734
 filename = 'a'
-p = 0.98
+p = 0.90
 serverSocket = socket(AF_INET,SOCK_DGRAM)
 serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 serverSocket.bind(('',serverPort))
@@ -18,6 +18,19 @@ global int_seq
 int_seq = 0
 global x
 x= 0
+real_check = 0
+exp_check = 0
+
+def carry_around_add(a, b):
+    c = a + b
+    return (c & 0xffff) + (c >> 16)
+
+def checksum(msg):
+    s = 0
+    for i in range(0, len(msg), 2):
+        w = ord(msg[i]) + (ord(msg[i+1]) << 8)
+        s = carry_around_add(s, w)
+    return ~s & 0xffff
 
 def get_seq(message):
 	global int_seq
@@ -26,6 +39,13 @@ def get_seq(message):
 	'''
 	print 'get seq %d' %(int_seq)
 	'''
+
+def get_check(message):
+	check_string = message[6:8]
+	int_check = (struct.unpack('h',check_string))[0]
+	if int_check < 0:
+		int_check = 65536 + int_check
+	return int_check
 
 def generate_ack(message):
 	global int_seq
@@ -59,18 +79,26 @@ while True:
 	if message == 'OK':
 		break;
 	get_seq(message)
+	exp_check = get_check(message)
+	real_check = checksum(message[8:])
+	print 'exp_check is %d' %exp_check
+	print 'real_check is %d' %real_check
 	if (int_seq - old_int_seq <= MSS):
 		if ((int_seq >old_int_seq) or (int_seq ==0)):
 			random_number = random.random()
 			'''
 			print '%f' %random_number
 			'''
-			if random_number <= p:
-				ack_message = generate_ack(message)
-				serverSocket.sendto(ack_message,clientAddr)
+			if exp_check == real_check:
+				print 'checksum righttttttttttttttt'
+				if random_number <= p:
+					ack_message = generate_ack(message)
+					serverSocket.sendto(ack_message,clientAddr)
+				else:
+					x= x+1
+					print 'Packet lost, sequence numebr is %d' %int_seq
 			else:
-				x= x+1
-				print 'Packet lost, sequence numebr is %d' %int_seq
+				print 'checksum wrong!!!!!!!!!!'
 		elif int_seq <= old_int_seq:
 			ack_message = generate_ack(message)
 			serverSocket.sendto(ack_message,clientAddr)

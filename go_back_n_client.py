@@ -5,14 +5,19 @@ import thread
 from threading import *
 from time import *
 import struct
-serverName = '127.0.0.1'
+import timeit
+
+start = timeit.default_timer()
+
+serverName = '152.46.20.220'
 serverPort = 7734
 serverAddr = (serverName,serverPort)
-filename = 'gbn_file'
+filename = 'test_file'
 time = 0.2
 global seq
 global int_ack
 global N
+global size
 global window
 global timeout
 global more_seq
@@ -22,19 +27,30 @@ old_int_ack =0
 more_seq = 1
 timeout = 0
 seq = 0
-N = 55
+N = 2
 window = []
-MSS = 2048
+MSS = 500
 global lock
 lock = Lock()
 global t
+
+def carry_around_add(a, b):
+    c = a + b
+    return (c & 0xffff) + (c >> 16)
+
+def checksum(msg):
+    s = 0
+    for i in range(0, len(msg), 2):
+        w = ord(msg[i]) + (ord(msg[i+1]) << 8)
+        s = carry_around_add(s, w)
+    return ~s & 0xffff
 
 '''set timer handler'''
 def gbn_timeout():
 	global old_int_ack
 	global timeout
-	print 'Timeout, sequence number is %d' %(old_int_ack)
 	lock.acquire()
+	print 'Timeout, sequence number is %d' %(old_int_ack)
 	timeout = 1
 	lock.release()
 
@@ -47,29 +63,31 @@ def receive_ack(mss):
 	global window
 	global lock
 	global t
+	global size
 	global more_seq
 	global old_int_ack
 	global int_ack
-	old_int_ack = 0
 	next = 1
 	while True:
 		ack = ''
 		(ack,serverAddr) = clientSocket.recvfrom(8)
 		ack_string = ack[0:4]
+		lock.acquire()
 		int_ack = (struct.unpack('i',ack_string))[0]
 		if (int_ack > old_int_ack):
 			'''
 			print 'get ack for %d' %int_ack
 			'''
-			if t:
-				t.cancel()
-				'''
-				del t
-				'''
+			t.cancel()
+			del t
+			if int_ack == size:
+				lock.release()
+				break;
 			t = Timer(time,gbn_timeout)
 			t.start()
-			lock.acquire()
-			number_ack = ceil((int_ack-old_int_ack)/MSS)
+			number_ack = ceil(float(int_ack-old_int_ack)/float(MSS))
+			if number_ack > 1:
+				print 'earlier ack have not come back'
 			N = N + number_ack
 			'''
 			problem is here
@@ -80,20 +98,12 @@ def receive_ack(mss):
 				if len(window)>0:
 					del window[0]
 				number_ack = number_ack - 1
-			lock.release()
-			'''
 			print 'now n = '+str(N)
-			'''
 			old_int_ack = int_ack
-			if more_seq == 0:
-				if int_ack == seq:
-					t.cancel()
-					'''
-					del t
-					'''
-					break
+			lock.release()
 		else:
-			print 'oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooops'
+			lock.release()
+			print 'earlier ack just come back'
 
 clientSocket = socket(AF_INET,SOCK_DGRAM)
 clientSocket.sendto(str(MSS),serverAddr)
@@ -117,38 +127,46 @@ while data or receive_thread.isAlive():
 		hex_seq = hex(seq)
 		hex_seq = ('0'*(10-len(hex_seq)))+hex_seq[2:]
 		reverse_hex_seq = hex_seq[6:8]+hex_seq[4:6]+hex_seq[2:4]+hex_seq[0:2]
-		data = reverse_hex_seq.decode("hex")+'\x00\x00\x55\x55'+data
+		check = checksum(data)
+		print 'real chekc is %d' %check
+		hex_check = hex(check)
+		hex_check = ('0'*(6-len(hex_seq)))+hex_seq[2:]
+		reverse_hex_check = hex_check[2:4]+hex_check[0:2]
+		data = reverse_hex_seq.decode("hex")+reverse_hex_check.decode("hex")+'\x55\x55'+data
+		print data[0:6]
+		lost = 0
 		while N == 0:
 			if timeout == 1:
 				go_back_size = 0
 				lock.acquire()
 				N = N + len(window)
+				print 'len of window is %d' %(len(window))
 				N = N-1
+				print 'after send, N is %d' %N
 				while len(window) > 1:
 					go_back_size = go_back_size-len(window[-1])+8
 					del window[-1]
 				seq = seq + go_back_size
-				'''
 				print '1.resend seq before %d' %seq
-				'''
-				f.seek(go_back_size-len(data)+8,1)
+				if len(data) == MSS:
+					f.seek(go_back_size-len(data),1)
+				else:
+					f.seek(go_back_size-len(data)+8,1)
 				clientSocket.sendto(window[0],serverAddr)
-				lock.release()
 				t.cancel()
 				'''
 				del t
 				'''
 				t = Timer(time,gbn_timeout)
-				t.start()		
+				t.start()
+				timeout = 0
+				lost = 1
+				lock.release()
 				data = f.read(MSS)
-
 				if not data:
 					more_seq = 0
-				'''
 				print 'just read file, position %d' %(f.tell())
-				'''
-		if timeout == 1:
-			timeout = 0
+		if lost == 1:
 			continue
 		'''
 		print 'send seq %d' %seq
@@ -158,6 +176,8 @@ while data or receive_thread.isAlive():
 		N = N-1
 		seq = seq + len(data)-8
 		lock.release()
+		if len(data) == 8:
+			print 'empty packet 111111111111111111111111111111111111'
 		clientSocket.sendto(data,serverAddr)
 	if timeout == 1:
 		go_back_size = 0
@@ -168,10 +188,15 @@ while data or receive_thread.isAlive():
 			go_back_size = go_back_size-len(window[-1])+8
 			del window[-1]
 		seq = seq + go_back_size
+		'''
 		print '2.resend seq before %d' %seq
+		'''
 		lock.release()
 		f.seek(go_back_size,1)
+		if len(window[0]) == 8:
+			print 'empty packet 222222222222222222222222222222'
 		clientSocket.sendto(window[0],serverAddr)
+		lock.acquire()
 		timeout = 0
 		t.cancel()
 		'''
@@ -179,9 +204,10 @@ while data or receive_thread.isAlive():
 		'''
 		t = Timer(time,gbn_timeout)
 		t.start()		
+		lock.release()
 	data = f.read(MSS)
-	if int_ack == size:
-		more_seq = 0
 clientSocket.sendto('OK',serverAddr)
 clientSocket.close()
 print 'finish sending file '+filename
+stop = timeit.default_timer()
+print stop - start
