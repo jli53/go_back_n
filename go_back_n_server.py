@@ -41,7 +41,7 @@ def get_seq(message):
 	'''
 
 def get_check(message):
-	check_string = message[6:8]
+	check_string = message[4:6]
 	int_check = (struct.unpack('h',check_string))[0]
 	if int_check < 0:
 		int_check = 65536 + int_check
@@ -81,8 +81,6 @@ while True:
 	get_seq(message)
 	exp_check = get_check(message)
 	real_check = checksum(message[8:])
-	print 'exp_check is %d' %exp_check
-	print 'real_check is %d' %real_check
 	if (int_seq - old_int_seq <= MSS):
 		if ((int_seq >old_int_seq) or (int_seq ==0)):
 			random_number = random.random()
@@ -90,7 +88,9 @@ while True:
 			print '%f' %random_number
 			'''
 			if exp_check == real_check:
+				'''
 				print 'checksum righttttttttttttttt'
+				'''
 				if random_number <= p:
 					ack_message = generate_ack(message)
 					serverSocket.sendto(ack_message,clientAddr)
@@ -98,6 +98,8 @@ while True:
 					x= x+1
 					print 'Packet lost, sequence numebr is %d' %int_seq
 			else:
+				print 'exp_check is %d' %exp_check
+				print 'real_check is %d' %real_check
 				print 'checksum wrong!!!!!!!!!!'
 		elif int_seq <= old_int_seq:
 			ack_message = generate_ack(message)

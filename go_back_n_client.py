@@ -8,8 +8,7 @@ import struct
 import timeit
 
 start = timeit.default_timer()
-
-serverName = '152.46.20.220'
+serverName = "127.0.0.1"
 serverPort = 7734
 serverAddr = (serverName,serverPort)
 filename = 'test_file'
@@ -27,9 +26,9 @@ old_int_ack =0
 more_seq = 1
 timeout = 0
 seq = 0
-N = 2
+N = 64
 window = []
-MSS = 500
+MSS = 2048
 global lock
 lock = Lock()
 global t
@@ -98,12 +97,16 @@ def receive_ack(mss):
 				if len(window)>0:
 					del window[0]
 				number_ack = number_ack - 1
+			'''
 			print 'now n = '+str(N)
+			'''
 			old_int_ack = int_ack
 			lock.release()
 		else:
 			lock.release()
+			'''
 			print 'earlier ack just come back'
+			'''
 
 clientSocket = socket(AF_INET,SOCK_DGRAM)
 clientSocket.sendto(str(MSS),serverAddr)
@@ -128,26 +131,33 @@ while data or receive_thread.isAlive():
 		hex_seq = ('0'*(10-len(hex_seq)))+hex_seq[2:]
 		reverse_hex_seq = hex_seq[6:8]+hex_seq[4:6]+hex_seq[2:4]+hex_seq[0:2]
 		check = checksum(data)
+		'''
 		print 'real chekc is %d' %check
+		'''
 		hex_check = hex(check)
-		hex_check = ('0'*(6-len(hex_seq)))+hex_seq[2:]
+		hex_check = ('0'*(6-len(hex_check)))+hex_check[2:]
 		reverse_hex_check = hex_check[2:4]+hex_check[0:2]
 		data = reverse_hex_seq.decode("hex")+reverse_hex_check.decode("hex")+'\x55\x55'+data
-		print data[0:6]
 		lost = 0
 		while N == 0:
 			if timeout == 1:
 				go_back_size = 0
 				lock.acquire()
 				N = N + len(window)
+				'''
 				print 'len of window is %d' %(len(window))
+				'''
 				N = N-1
+				'''
 				print 'after send, N is %d' %N
+				'''
 				while len(window) > 1:
 					go_back_size = go_back_size-len(window[-1])+8
 					del window[-1]
 				seq = seq + go_back_size
+				'''
 				print '1.resend seq before %d' %seq
+				'''
 				if len(data) == MSS:
 					f.seek(go_back_size-len(data),1)
 				else:
@@ -165,7 +175,9 @@ while data or receive_thread.isAlive():
 				data = f.read(MSS)
 				if not data:
 					more_seq = 0
+				'''
 				print 'just read file, position %d' %(f.tell())
+				'''
 		if lost == 1:
 			continue
 		'''
