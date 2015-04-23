@@ -1,9 +1,11 @@
 from socket import *
+import sys
 import struct
 import random
-serverPort = 7734
-filename = 'a'
-p = 0.90
+serverPort = int(sys.argv[1])
+filename = sys.argv[2]
+p = float(sys.argv[3])
+p = 1 - p
 serverSocket = socket(AF_INET,SOCK_DGRAM)
 serverSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 serverSocket.bind(('',serverPort))

@@ -6,12 +6,12 @@ from threading import *
 from time import *
 import struct
 import timeit
-
+import sys
 start = timeit.default_timer()
-serverName = raw_input("please input the server's address:\n")
-serverPort = 7734
+serverName = sys.argv[1]
+serverPort = int(sys.argv[2])
 serverAddr = (serverName,serverPort)
-filename = 'test_file'
+filename = sys.argv[3]
 time = 0.2
 global seq
 global int_ack
@@ -26,9 +26,9 @@ old_int_ack =0
 more_seq = 1
 timeout = 0
 seq = 0
-N = 64
+N = int(sys.argv[4])
 window = []
-MSS = 2048
+MSS = int(sys.argv[5])
 global lock
 lock = Lock()
 global t
