@@ -8,7 +8,7 @@ import struct
 import timeit
 
 start = timeit.default_timer()
-serverName = "127.0.0.1"
+serverName = raw_input("please input the server's address:\n")
 serverPort = 7734
 serverAddr = (serverName,serverPort)
 filename = 'test_file'
