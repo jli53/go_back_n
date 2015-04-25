@@ -98,7 +98,7 @@ while True:
 					serverSocket.sendto(ack_message,clientAddr)
 				else:
 					x= x+1
-					print 'Packet lost, sequence numebr is %d' %int_seq
+					print 'Packet lost, sequence number = %d' %int_seq
 			else:
 				print 'exp_check is %d' %exp_check
 				print 'real_check is %d' %real_check
