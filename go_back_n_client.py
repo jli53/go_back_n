@@ -49,7 +49,7 @@ def gbn_timeout():
 	global old_int_ack
 	global timeout
 	lock.acquire()
-	print 'Timeout, sequence number is %d' %(old_int_ack)
+	print 'Timeout, sequence number = %d' %(old_int_ack)
 	timeout = 1
 	lock.release()
 
